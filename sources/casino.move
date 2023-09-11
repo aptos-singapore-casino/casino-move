@@ -14,7 +14,6 @@ module casino_addr::casino {
     use aptos_std_extra::randomness;
 
     use std::signer;
-    use std::vector;
     use std::option::{Self, Option};
 
     // seed for the module's resource account
@@ -127,7 +126,7 @@ module casino_addr::casino {
         outcome: Option<u8>,
 
     }
-    
+
     /*
         Struct representing different betting options and the amount bet on each
     */
@@ -185,7 +184,23 @@ module casino_addr::casino {
         @param admin - signer representing the admin account
     */
     fun init_module(admin: &signer) {
-        // TODO
+
+        let (resource, signer_cap) = account::create_resource_account(admin, SEED);
+        coin::register<AptosCoin>(&resource);
+        let resource_account_signer = account::create_signer_with_capability(&signer_cap);
+        
+        move_to(&resource,
+            State {
+                next_game_id: 0,
+                games: simple_map::create(),
+                cap: signer_cap,
+                place_bets_events: account::new_event_handle<PlaceBetsEvent>(&resource_account_signer),
+                result_events: account::new_event_handle<ResultEvent>(&resource_account_signer),
+                payout_winner_events: account::new_event_handle<PayoutWinnerEvent>(&resource_account_signer),
+            }
+        )
+
+        // TODO: Start first game
     }
 
     /*
@@ -194,19 +209,22 @@ module casino_addr::casino {
         @param game_id - ID of the game
         @param bets - a vector of all the bets the player wants to play this game
     */
-    public entry fun place_bet(
+    public entry fun place_bets(
         player: &signer,
         game_id: u128,
-        bets: vector<Bet>
+        // bets: vector<Bet>
+        _selections: vector<vector<u8>>,
+        _amounts: vector<u128>,
         ) acquires State {
 
             let resource_account_address = get_resource_account_address();
             let state = borrow_global_mut<State>(resource_account_address);
             let player_address = signer::address_of(player);
 
+            // TODO: Create bets vector based on inputs
+            let bets = vector[];
+
             // TODO: place bet and add to state of game 
-
-
             event::emit_event<PlaceBetsEvent>(
             &mut state.place_bets_events,
             PlaceBetsEvent {
