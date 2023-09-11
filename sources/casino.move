@@ -15,6 +15,7 @@ module casino_addr::casino {
 
     use std::signer;
     use std::vector;
+    use std::option::{Self, Option};
 
     // seed for the module's resource account
     const SEED: vector<u8> = b"Casino";
@@ -22,6 +23,9 @@ module casino_addr::casino {
     //==============================================================================================
     // Constants
     //==============================================================================================
+
+    const MIN_ROULETTE_OUTCOME: u64 = 0;
+    const MAX_ROULETTE_OUTCOME: u64 = 36;
 
     // Possible roulette outcomes
     const STRAIGHT_0: vector<u8> = vector[0];
@@ -83,6 +87,11 @@ module casino_addr::casino {
     const ESignerIsNotAdmin: u64 = 1;
     const EGameDoesNotExist: u64 = 2;
     const EInvalidBetSelected: u64 = 3;
+    const EGameIsNotFinished: u64 = 4;
+    const EGameIsFinished: u64 = 5;
+
+    const ENotImplemented: u64 = 99;
+    
 
 
     
@@ -98,8 +107,6 @@ module casino_addr::casino {
         next_game_id: u128,
         // SimpleMap instance mapping game IDs to Game instances
         games: SimpleMap<u128, Game>,
-        // Boolean value indicating if any player has already claimed the prize
-        prize_claimed: bool,
         // Resource account's SignerCapability
         cap: SignerCapability,
         // Events
@@ -113,20 +120,14 @@ module casino_addr::casino {
     */
     struct Game has store, drop, copy {
         // play_time is the start time of the game, no more bets can be placed after this moment.
-        play_time: date,
-        // bets_per_player contain the bets of each player mapped to their address
-        bets_per_player: SimpleMap<address, PlayerBets>,
-        // outcome is value in range 0,36
-        outcome: u8,
-    }
+        play_time: u64,
+        // player_bets contain the bets of each player mapped to their address
+        player_bets: SimpleMap<address, vector<Bet>>,
+        // outcome is value in range 0,36 and empty for game that is not finished
+        outcome: Option<u8>,
 
-    /*
-        Struct representing a single player's bets
-    */
-    struct PlayerBets has store, drop, copy {
-        bets: vector<Bet>
     }
-
+    
     /*
         Struct representing different betting options and the amount bet on each
     */
@@ -194,46 +195,109 @@ module casino_addr::casino {
         @param bets - a vector of all the bets the player wants to play this game
     */
     public entry fun place_bet(
-        _player: &signer,
-        _game_id: u128,
-        _bets: PlayerBets
+        player: &signer,
+        game_id: u128,
+        bets: vector<Bet>
         ) acquires State {
-            // TODO
+
+            let resource_account_address = get_resource_account_address();
+            let state = borrow_global_mut<State>(resource_account_address);
+            let player_address = signer::address_of(player);
+
+            // TODO: place bet and add to state of game 
+
+
+            event::emit_event<PlaceBetsEvent>(
+            &mut state.place_bets_events,
+            PlaceBetsEvent {
+                game_id: game_id,
+                player_address: player_address,
+                bets: bets,
+                event_creation_timestamp_in_seconds: timestamp::now_seconds()
+            }
+        );
     }
 
-        /*
-        Play the game with the players that have placed their bets. A random number is drawn,
-        and players who have bets on the winning number get paid out.
+    /*
+        Play the game with the players who have placed their bets. A random number is drawn,
+        and players who have placed bets on the winning number receive their respective payout.
         @param admin - signer representing the admin account
         @param game_id - ID of the game
+        @returns - u8 with random spin outcome (range 0,36 inclusive)
     */
     public entry fun spin(
-        _admin: &signer, 
-        _game_id: u128
+        admin: &signer, 
+        game_id: u128
     ) acquires State {
-        // TODO: Check if there are any bets placed
-        // TODO: Generate random number
+        // Checks
+        check_if_signer_is_admin(admin);
+
+
+        let resource_account_address = get_resource_account_address();
+        let state = borrow_global_mut<State>(resource_account_address);
+
+        // Get game by game_id
+        let game = simple_map::borrow_mut(&mut state.games, &game_id);
+        check_if_game_is_not_finished(game);
+
+        // Generate random number using randomness module
+        let spin_outcome = (randomness::u64_range(
+            MIN_ROULETTE_OUTCOME,
+            MAX_ROULETTE_OUTCOME + 1
+        ) as u8);
+
+        // Save the outcome in the game struct
+        game.outcome = option::some(spin_outcome);
+
+        // Emit ResultEvent
+        // event::emit_event<ResultEvent>(
+        // &mut state.result_events,
+        // ResultEvent {
+        //     game_id: game_id,
+        //     game_result: spin_outcome,
+        //     event_creation_timestamp_in_seconds: timestamp::now_seconds()
+        // }
+        // );
+
+        // TODO: Check results for each player
+        // apt_amount = calculate_result();
+
         // TODO: Payout winners
+
+
+        // TODO: Create a new game
+
+        let current_game_id = 0;
+        simple_map::add(
+            &mut state.games, 
+            current_game_id,
+            Game {
+                play_time: 0,
+                player_bets: simple_map::create(),
+                outcome: option::none()
+            });
+
+        // TODO: Returns the random outcome
     }
 
     /*
         Gets and returns all games in a simple_map
         @returns - SimpleMap instance containing all games
     */
-    #[view]
-    public fun get_all_games(): SimpleMap<u128, Game> acquires State {
-        // TODO: return vector with all games 
-    }
+    // #[view]
+    // public fun get_all_games(): SimpleMap<u128, Game> acquires State {
+    //     // TODO: return vector with all games 
+    // }
 
     /*
         Returns outcome of the game with the corresponding game_id
         @param game_id - ID of the game
         @returns - u8 in range 0,36 representing the result
     */
-    #[view]
-    public fun get_game_result(_game_id: u128): u8 acquires State {
-        // TODO: return result by game id
-    }
+    // #[view]
+    // public fun get_game_result(_game_id: u128): u8 acquires State {
+    //     // TODO: return result by game id
+    // }
 
     //==============================================================================================
     // Helper functions
@@ -248,27 +312,67 @@ module casino_addr::casino {
     }
 
     
-    inline fun calculate_payout() {
-        // TODO
-    }
+    // inline fun calculate_payout() {
+    //     // TODO
+    // }
 
-    inline fun payout_player(_player_address: address, _apt_amount: u64) {
-        // TODO
-    }
+    // inline fun payout_player(_player_address: address, _apt_amount: u64) {
+
+    // }
+
+    // inline fun close_game(_game_id: u128) {
+
+    // }
+
+    // inline fun payout_player(_player_address: address, _apt_amount: u64) {
+
+    // }
+
+
 
     //==============================================================================================
     // Validation functions
     //==============================================================================================
 
-    inline fun check_if_account_has_enough_apt_coins(_account: address, _apt_amount: u64) {
+    inline fun check_if_account_has_enough_apt_coins(account: address, apt_amount: u64) {
         assert!(coin::balance<AptosCoin>(account) >= apt_amount, EInsufficientAptBalance);
 
     }
 
-    inline fun check_if_signer_is_admin(_account: &signer) {
+    inline fun check_if_signer_is_admin(account: &signer) {
         assert!(signer::address_of(account) == @casino_addr,ESignerIsNotAdmin);
         // TODO: check if the casino_addr is correct to use here
     }
+
+    inline fun check_if_player_has_placed_bet(_account: &signer) {
+        assert!(false,ENotImplemented);
+        // TODO: copy paste this to create new validation function
+    }
+    
+    inline fun check_if_bets_are_valid(_account: &signer, _bets: &vector<Bet>) {
+        assert!(false,ENotImplemented);
+        // TODO: copy paste this to create new validation function
+    }
+
+    inline fun check_for_nonzero_bets_placed(_account: &signer) {
+        assert!(false,ENotImplemented);
+        // TODO: copy paste this to create new validation function
+    }
+
+    inline fun dummy_check(_account: &signer) {
+        assert!(false,ENotImplemented);
+        // TODO: copy paste this to create new validation function
+    }
+
+    inline fun check_if_game_is_not_finished(game: &Game) {
+        assert!(option::is_none(&game.outcome),EGameIsFinished);
+    }
+
+    inline fun check_if_game_is_finished(game: &Game) {
+        assert!(option::is_some(&game.outcome),EGameIsNotFinished);
+    }
+
+    
 
     //==============================================================================================
     // Tests

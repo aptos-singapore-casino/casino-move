@@ -5,6 +5,7 @@ authors = []
 
 [addresses]
 casino_addr='5ecd901a9e8689fb1f3c96adae2ebf9efd0b0e88c704e462bb3eae9ff926cc9b'
+aptos_std_extra='5ecd901a9e8689fb1f3c96adae2ebf9efd0b0e88c704e462bb3eae9ff926cc9b'
 
 [dev-addresses]
 
