@@ -14,14 +14,17 @@ module casino_addr::casino {
     use aptos_std_extra::randomness;
 
     use std::signer;
+    use std::vector;
     use std::option::{Self, Option};
 
-    // seed for the module's resource account
-    const SEED: vector<u8> = b"Casino";
+
 
     //==============================================================================================
     // Constants
     //==============================================================================================
+
+    // seed for the module's resource account
+    const SEED: vector<u8> = b"Casino";
 
     const MIN_ROULETTE_OUTCOME: u64 = 0;
     const MAX_ROULETTE_OUTCOME: u64 = 36;
@@ -88,11 +91,12 @@ module casino_addr::casino {
     const EInvalidBetSelected: u64 = 3;
     const EGameIsNotFinished: u64 = 4;
     const EGameIsFinished: u64 = 5;
+    const EVectorsAreNotSameLength: u64 = 6;
+    const EPlayerHasNotPlacedBet: u64 = 7;
+    const EPlayerHasAlreadyPlacedBet: u64 = 8;
 
+    // Use this for not implemented errors
     const ENotImplemented: u64 = 99;
-    
-
-
     
     //==============================================================================================
     // Module Structs
@@ -119,9 +123,11 @@ module casino_addr::casino {
     */
     struct Game has store, drop, copy {
         // play_time is the start time of the game, no more bets can be placed after this moment.
+        // TODO: Implement timed spins
         play_time: u64,
+        players: vector<address>,
         // player_bets contain the bets of each player mapped to their address
-        player_bets: SimpleMap<address, vector<Bet>>,
+        players_bets: SimpleMap<address, vector<Bet>>,
         // outcome is value in range 0,36 and empty for game that is not finished
         outcome: Option<u8>,
 
@@ -189,18 +195,23 @@ module casino_addr::casino {
         coin::register<AptosCoin>(&resource);
         let resource_account_signer = account::create_signer_with_capability(&signer_cap);
         
+        let next_game_id = 0;
+        let games = simple_map::create();
+
+        // Create a new game
+        let current_game_id = get_next_game_id(&mut next_game_id);
+        start_new_game(&mut games, current_game_id);
+
         move_to(&resource,
             State {
-                next_game_id: 0,
-                games: simple_map::create(),
+                next_game_id: next_game_id,
+                games: games,
                 cap: signer_cap,
                 place_bets_events: account::new_event_handle<PlaceBetsEvent>(&resource_account_signer),
                 result_events: account::new_event_handle<ResultEvent>(&resource_account_signer),
                 payout_winner_events: account::new_event_handle<PayoutWinnerEvent>(&resource_account_signer),
             }
         )
-
-        // TODO: Start first game
     }
 
     /*
@@ -212,28 +223,41 @@ module casino_addr::casino {
     public entry fun place_bets(
         player: &signer,
         game_id: u128,
-        // bets: vector<Bet>
-        _selections: vector<vector<u8>>,
-        _amounts: vector<u128>,
+        selections: vector<vector<u8>>,
+        amounts: vector<u128>,
         ) acquires State {
-
+            check_if_vectors_are_same_length(selections, amounts);
             let resource_account_address = get_resource_account_address();
             let state = borrow_global_mut<State>(resource_account_address);
             let player_address = signer::address_of(player);
 
-            // TODO: Create bets vector based on inputs
-            let bets = vector[];
+            let game = simple_map::borrow_mut(&mut state.games, &game_id);
+            let player_bets = simple_map::borrow_mut(&mut game.players_bets, &player_address);
 
-            // TODO: place bet and add to state of game 
+            // check_if_player_has_not_placed_bet(game, &player_address);
+
+            // TODO: if player already has bets, replace old bets
+
+            // Create bets vector based on inputs and add to player_bets
+            while (!vector::is_empty(&amounts)) {
+                let bet = Bet{
+                    // TODO: change this to vector::zip
+                    selection: vector::pop_back(&mut selections), 
+                    amount: vector::pop_back(&mut amounts)
+                    };
+                vector::push_back(player_bets, bet)
+            };
+
+            // Emit PlaceBetsEvent
             event::emit_event<PlaceBetsEvent>(
             &mut state.place_bets_events,
             PlaceBetsEvent {
                 game_id: game_id,
                 player_address: player_address,
-                bets: bets,
+                bets: *player_bets,
                 event_creation_timestamp_in_seconds: timestamp::now_seconds()
             }
-        );
+            );
     }
 
     /*
@@ -247,9 +271,7 @@ module casino_addr::casino {
         admin: &signer, 
         game_id: u128
     ) acquires State {
-        // Checks
         check_if_signer_is_admin(admin);
-
 
         let resource_account_address = get_resource_account_address();
         let state = borrow_global_mut<State>(resource_account_address);
@@ -268,44 +290,43 @@ module casino_addr::casino {
         game.outcome = option::some(spin_outcome);
 
         // Emit ResultEvent
-        // event::emit_event<ResultEvent>(
-        // &mut state.result_events,
-        // ResultEvent {
-        //     game_id: game_id,
-        //     game_result: spin_outcome,
-        //     event_creation_timestamp_in_seconds: timestamp::now_seconds()
-        // }
-        // );
+        event::emit_event<ResultEvent>(
+        &mut state.result_events,
+        ResultEvent {
+            game_id: game_id,
+            game_result: spin_outcome,
+            event_creation_timestamp_in_seconds: timestamp::now_seconds()
+        }
+        );
+
+
+
+        // vector::for_each(&game.players, |player_address| {
+        //     let _player_bets = simple_map::borrow_mut(&game.player_bets, &player_address);
+        // });
 
         // TODO: Check results for each player
         // apt_amount = calculate_result();
-
         // TODO: Payout winners
 
 
-        // TODO: Create a new game
+        // Start the next game
+        let current_game_id = get_next_game_id(&mut state.next_game_id);
+        start_new_game(&mut state.games, current_game_id);
 
-        let current_game_id = 0;
-        simple_map::add(
-            &mut state.games, 
-            current_game_id,
-            Game {
-                play_time: 0,
-                player_bets: simple_map::create(),
-                outcome: option::none()
-            });
-
-        // TODO: Returns the random outcome
+        // game.outcome
     }
 
     /*
         Gets and returns all games in a simple_map
         @returns - SimpleMap instance containing all games
     */
-    // #[view]
-    // public fun get_all_games(): SimpleMap<u128, Game> acquires State {
-    //     // TODO: return vector with all games 
-    // }
+    #[view]
+    public fun get_all_games(): SimpleMap<u128, Game> acquires State {
+        let resource_account_address = get_resource_account_address();
+        let state = borrow_global_mut<State>(resource_account_address);
+        state.games
+    }
 
     /*
         Returns outcome of the game with the corresponding game_id
@@ -345,7 +366,25 @@ module casino_addr::casino {
     // inline fun payout_player(_player_address: address, _apt_amount: u64) {
 
     // }
+    
+    inline fun get_next_game_id(next_game_id: &mut u128): u128 {
+        let current_value = *next_game_id;
+        *next_game_id = current_value +1;
+        current_value
+    }
 
+    inline fun start_new_game(games: &mut SimpleMap<u128, Game>, current_game_id: u128) {
+        simple_map::add(
+            games,
+            current_game_id,
+            Game {
+                play_time: 0,
+                players: vector::empty(),
+                players_bets: simple_map::create(),
+                outcome: option::none()
+            }
+        );
+    }
 
 
     //==============================================================================================
@@ -362,20 +401,20 @@ module casino_addr::casino {
         // TODO: check if the casino_addr is correct to use here
     }
 
-    inline fun check_if_player_has_placed_bet(_account: &signer) {
-        assert!(false,ENotImplemented);
-        // TODO: copy paste this to create new validation function
+    // inline fun check_if_player_has_placed_bet(_account: &signer) {
+    //     assert!(!vector::is_empty(simple_map::borrow(&game.players_bets, player_address)),EPlayerHasAlreadyPlacedBet);
+
+    // }
+
+    inline fun check_if_player_has_not_placed_bet(game: &mut Game, player_address: &address) {
+        assert!(vector::is_empty(simple_map::borrow(&game.players_bets, player_address)),EPlayerHasAlreadyPlacedBet);
     }
     
     inline fun check_if_bets_are_valid(_account: &signer, _bets: &vector<Bet>) {
-        assert!(false,ENotImplemented);
+        assert!(true,ENotImplemented);
         // TODO: copy paste this to create new validation function
     }
 
-    inline fun check_for_nonzero_bets_placed(_account: &signer) {
-        assert!(false,ENotImplemented);
-        // TODO: copy paste this to create new validation function
-    }
 
     inline fun dummy_check(_account: &signer) {
         assert!(false,ENotImplemented);
@@ -390,10 +429,28 @@ module casino_addr::casino {
         assert!(option::is_some(&game.outcome),EGameIsNotFinished);
     }
 
+    inline fun check_if_vectors_are_same_length(selections: vector<vector<u8>>, amounts: vector<u128>) {
+        assert!(vector::length(&selections) == vector::length(&amounts), EVectorsAreNotSameLength);
+        
+        assert!(true,ENotImplemented);
+// TODO: implement this
+    }
     
 
     //==============================================================================================
     // Tests
     //==============================================================================================
+    #[test]
+    fun test_init_module() acquires State {
 
+
+        let casino = account::create_account_for_test(@casino_addr);
+        coin::register<AptosCoin>(&casino);
+        init_module(&casino);
+
+        let resource_account_address = account::create_resource_address(&@casino_addr, SEED);
+        let state = borrow_global<State>(resource_account_address);
+        assert!(state.next_game_id == 1, 0);
+        assert!(simple_map::length(&state.games) == 1, 1);
+    }
 }
