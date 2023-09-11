@@ -67,8 +67,11 @@ module casino_addr::casino {
     const STRAIGHT_34: vector<u8> = vector [34];
     const STRAIGHT_35: vector<u8> = vector [35];
     const STRAIGHT_36: vector<u8> = vector [36];
-    const ODD: vector<u8> = vector [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    const EVEN: vector<u8> = vector [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
+
+    const RED: vector<u8> = vector[1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    const BLACK: vector<u8> = vector[2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
+    const ODD: vector<u8> = vector[1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35];
+    const EVEN: vector<u8> = vector[2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36];
     const LOW: vector<u8> = vector [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     const MID: vector<u8> = vector [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
     const HIGH: vector<u8> = vector [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36];
@@ -125,7 +128,6 @@ module casino_addr::casino {
         // play_time is the start time of the game, no more bets can be placed after this moment.
         // TODO: Implement timed spins
         play_time: u64,
-        players: vector<address>,
         // player_bets contain the bets of each player mapped to their address
         players_bets: SimpleMap<address, vector<Bet>>,
         // outcome is value in range 0,36 and empty for game that is not finished
@@ -170,14 +172,12 @@ module casino_addr::casino {
     }
 
     /*
-        Event to be emitted when the player has won and they are payed out their winnings
+        Event to be emitted when a player is getting a payout
     */
     struct PayoutWinnerEvent has store, drop {
-        // TODO: Should we do 1 event for all players or multiple events for each player?
-        // Current implementation: 1 event for each player payout
         game_id: u128,
         player_address: address,
-        amount: u256,
+        amount: u128,
         event_creation_timestamp_in_seconds: u64
     }
 
@@ -226,7 +226,6 @@ module casino_addr::casino {
         selections: vector<vector<u8>>,
         amounts: vector<u128>,
         ) acquires State {
-            check_if_vectors_are_same_length(selections, amounts);
             let resource_account_address = get_resource_account_address();
             let state = borrow_global_mut<State>(resource_account_address);
             let player_address = signer::address_of(player);
@@ -236,9 +235,10 @@ module casino_addr::casino {
 
             // check_if_player_has_not_placed_bet(game, &player_address);
 
-            // TODO: if player already has bets, replace old bets
+            // TODO: if player already has bets, clear old bets
 
             // Create bets vector based on inputs and add to player_bets
+            check_if_vectors_are_same_length(selections, amounts);
             while (!vector::is_empty(&amounts)) {
                 let bet = Bet{
                     // TODO: change this to vector::zip
@@ -272,9 +272,10 @@ module casino_addr::casino {
         game_id: u128
     ) acquires State {
         check_if_signer_is_admin(admin);
-
         let resource_account_address = get_resource_account_address();
         let state = borrow_global_mut<State>(resource_account_address);
+
+        let resource_account_signer = account::create_signer_with_capability(&state.cap);
 
         // Get game by game_id
         let game = simple_map::borrow_mut(&mut state.games, &game_id);
@@ -298,23 +299,28 @@ module casino_addr::casino {
             event_creation_timestamp_in_seconds: timestamp::now_seconds()
         }
         );
+        
+        // Loop over all players to payout any winners
+        let players = simple_map::keys(&game.players_bets);
+        vector::for_each(players, |player_address| {
+            let player_bets = simple_map::borrow_mut(&mut game.players_bets, &player_address);
+            let apt_amount_won = calculate_total_payout(*player_bets, &spin_outcome);
 
-
-
-        // vector::for_each(&game.players, |player_address| {
-        //     let _player_bets = simple_map::borrow_mut(&game.player_bets, &player_address);
-        // });
-
-        // TODO: Check results for each player
-        // apt_amount = calculate_result();
-        // TODO: Payout winners
-
+            coin::transfer<AptosCoin>(&resource_account_signer, player_address, (apt_amount_won as u64));
+            event::emit_event<PayoutWinnerEvent>(
+            &mut state.payout_winner_events,
+            PayoutWinnerEvent {
+                game_id: game_id,
+                player_address: player_address,
+                amount: apt_amount_won,
+                event_creation_timestamp_in_seconds: timestamp::now_seconds()
+            }
+            );
+        });
 
         // Start the next game
         let current_game_id = get_next_game_id(&mut state.next_game_id);
         start_new_game(&mut state.games, current_game_id);
-
-        // game.outcome
     }
 
     /*
@@ -333,10 +339,18 @@ module casino_addr::casino {
         @param game_id - ID of the game
         @returns - u8 in range 0,36 representing the result
     */
-    // #[view]
-    // public fun get_game_result(_game_id: u128): u8 acquires State {
-    //     // TODO: return result by game id
-    // }
+    #[view]
+    public fun get_game_result(game_id: u128): u8 acquires State {
+        let resource_account_address = get_resource_account_address();
+        let state = borrow_global_mut<State>(resource_account_address);
+
+        check_if_game_exists(&state.games, &game_id);
+
+        let game = simple_map::borrow(&state.games, &game_id);
+        check_if_game_is_finished(game);
+
+        *option::borrow(&game.outcome)
+    }
 
     //==============================================================================================
     // Helper functions
@@ -350,10 +364,29 @@ module casino_addr::casino {
         account::create_resource_address(&@casino_addr, SEED)        
     }
 
-    
-    // inline fun calculate_payout() {
-    //     // TODO
-    // }
+    /*
+        Calculate the total payout for a vector of bets and an outcome
+        @returns - payout amount as u128 
+    */
+    inline fun calculate_total_payout(bets: vector<Bet>, outcome: &u8): u128 {
+        let total_payout: u128 = 0;
+        vector::for_each(bets, |bet| {
+            total_payout = total_payout + calculate_single_payout(&bet, outcome)
+        });
+        total_payout
+    }
+
+    /*
+        Calculate the payout for a single bet and an outcome
+        @returns - payout amount as u128 
+    */
+    inline fun calculate_single_payout(bet: &Bet, outcome: &u8): u128 {
+        let win_amount = 0;
+        if (vector::contains(&bet.selection, outcome)) {
+            win_amount = (bet.amount * (MAX_ROULETTE_OUTCOME / vector::length(&bet.selection) as u128));
+        };
+        win_amount
+    }
 
     // inline fun payout_player(_player_address: address, _apt_amount: u64) {
 
@@ -379,7 +412,6 @@ module casino_addr::casino {
             current_game_id,
             Game {
                 play_time: 0,
-                players: vector::empty(),
                 players_bets: simple_map::create(),
                 outcome: option::none()
             }
@@ -435,6 +467,11 @@ module casino_addr::casino {
         assert!(true,ENotImplemented);
 // TODO: implement this
     }
+
+    
+    inline fun check_if_game_exists(games: &SimpleMap<u128, Game>, game_id: &u128) {
+        assert!(simple_map::contains_key(games, game_id), EGameDoesNotExist);
+    }
     
 
     //==============================================================================================
@@ -452,5 +489,84 @@ module casino_addr::casino {
         let state = borrow_global<State>(resource_account_address);
         assert!(state.next_game_id == 1, 0);
         assert!(simple_map::length(&state.games) == 1, 1);
+    }
+
+    #[test]
+    fun test_calculate_single_payout_win() {
+        let amount: u128 = 10;
+        let bet_odd = Bet {
+            selection: ODD,
+            amount: amount
+        };
+        let winnings = calculate_single_payout(&bet_odd, &11);
+        assert!(winnings == 20, 0);
+    }
+
+    #[test]
+    fun test_calculate_single_payout_lose() {
+        let amount: u128 = 10;
+        let bet_odd = Bet {
+            selection: ODD,
+            amount: amount
+        };
+        let winnings = calculate_single_payout(&bet_odd, &10);
+        assert!(winnings == 0, 0);
+    }
+
+    
+    #[test]
+    fun test_calculate_single_straight_payout_win() {
+        let amount: u128 = 1;
+        let bet_odd = Bet {
+            selection: STRAIGHT_0,
+            amount: amount
+        };
+        let winnings = calculate_single_payout(&bet_odd, &0);
+        assert!(winnings == 36, 0);
+    }
+    
+    #[test]
+    fun test_calculate_total_payout_win_all() {
+        let bets = vector::empty();
+        vector::push_back(&mut bets, Bet {
+            selection: STRAIGHT_14,
+            amount: 1
+        });
+        vector::push_back(&mut bets, Bet {
+            selection: EVEN,
+            amount: 1
+        });
+        let winnings = calculate_total_payout(bets, &14);
+        assert!(winnings == 38, 0);
+    }
+    
+    #[test]
+    fun test_calculate_total_payout_win_mixed() {
+        let bets = vector::empty();
+        vector::push_back(&mut bets, Bet {
+            selection: STRAIGHT_14,
+            amount: 1
+        });
+        vector::push_back(&mut bets, Bet {
+            selection: EVEN,
+            amount: 1
+        });
+        let winnings = calculate_total_payout(bets, &8);
+        assert!(winnings == 2, 0);
+    }
+
+    #[test]
+    fun test_calculate_total_payout_lose() {
+        let bets = vector::empty();
+        vector::push_back(&mut bets, Bet {
+            selection: STRAIGHT_14,
+            amount: 1
+        });
+        vector::push_back(&mut bets, Bet {
+            selection: EVEN,
+            amount: 1
+        });
+        let winnings = calculate_total_payout(bets, &9);
+        assert!(winnings == 0, 0);
     }
 }
