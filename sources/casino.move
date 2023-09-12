@@ -322,14 +322,14 @@ module casino_addr::casino {
         std::debug::print(&players);
         vector::for_each(players, |player_address| {
             
-            std::debug::print(&apt_amount_won);
-
             // Calculate and pay winning players
             let player_bets = simple_map::borrow_mut(&mut game.players_bets, &player_address);
             let apt_amount_won = calculate_total_payout(*player_bets, &spin_outcome);
             if (apt_amount_won > 0) {
                 coin::transfer<AptosCoin>(&resource_account_signer, player_address, (apt_amount_won as u64));
-            }
+            };
+            std::debug::print(&apt_amount_won);
+
 
             // Emit PayoutWinnerEvent including 0 winnings which don't get a payout
             event::emit_event<PayoutWinnerEvent>(
