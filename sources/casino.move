@@ -79,9 +79,6 @@ module casino_addr::casino {
     const LOW: vector<u8> = vector [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     const MID: vector<u8> = vector [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
     const HIGH: vector<u8> = vector [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36];
-    const FIRST_DOZEN: vector<u8> = vector [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    const SECOND_DOZEN: vector<u8> = vector [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
-    const THIRD_DOZEN: vector<u8> = vector [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36];
     const FIRST_COLUMN: vector<u8> = vector [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34];
     const SECOND_COLUMN: vector<u8> = vector [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35];
     const THIRD_COLUMN: vector<u8> = vector [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36];
@@ -102,8 +99,6 @@ module casino_addr::casino {
     const EPlayerHasNotPlacedBet: u64 = 7;
     const EPlayerHasAlreadyPlacedBet: u64 = 8;
 
-    // Use this for not implemented errors
-    const ENotImplemented: u64 = 99;
     
     //==============================================================================================
     // Module Structs

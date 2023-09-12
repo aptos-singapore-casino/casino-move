@@ -4,8 +4,8 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-casino_addr='_'
-aptos_std_extra='_'
+casino_addr='3208043c4d71906027766264a92931eab44cda8dbed21cc7649d086a0b033190'
+aptos_std_extra='3208043c4d71906027766264a92931eab44cda8dbed21cc7649d086a0b033190'
 player_addr='224792261783f242f056f6628c0b41bcaa0112fc83e449028663386b90535768'
 
 [dev-addresses]
