@@ -142,8 +142,8 @@ module casino_addr::casino {
         // amount is the value bet on the whole selection.
         amount: u128
 
-        // TODO: Rewrite this struct according to commented out values below
-        //       to save on gas and storage.
+        // // TODO: Rewrite this struct according to commented out values below
+        // //      to save on gas and storage.
         // // selection is a value in range 0,36 inclusive for the field on which the bet is placed
         // selection: u8,
         // // amount is the total value placed on this field. 
@@ -402,7 +402,6 @@ module casino_addr::casino {
     inline fun calculate_single_payout(bet: &Bet, outcome: &u8): u128 {
         let win_amount = 0;
         if (vector::contains(&bet.selection, outcome)) {
-            let selection2 = vector::borrow(&bet.selection,0);
             win_amount = (bet.amount * (MAX_ROULETTE_OUTCOME as u128)) / (vector::length(&bet.selection) as u128);
         };
         win_amount
@@ -523,7 +522,6 @@ module casino_addr::casino {
         let games = get_all_games();
         assert!(simple_map::length(&games) == 1, 2);
     }
-
 
     #[test (aptos_framework = @0x1)]
     fun test_spin_empty_game(
