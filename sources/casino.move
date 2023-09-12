@@ -384,7 +384,6 @@ module casino_addr::casino {
         
     }
 
-
     //==============================================================================================
     // Helper functions
     //==============================================================================================
@@ -408,12 +407,12 @@ module casino_addr::casino {
     inline fun calculate_single_payout(bet: &Bet, outcome: &u8): u128 {
         let win_amount = 0;
         if (vector::contains(&bet.selection, outcome)) {
-            std::debug::print(bet);
-            std::debug::print(&vector::length(&bet.selection));
+            std::debug::print(&bet.selection);
+            let selection2 = vector::borrow(&bet.selection,0);
+            std::debug::print(selection2);
             win_amount = (bet.amount * (MAX_ROULETTE_OUTCOME as u128)) / (vector::length(&bet.selection) as u128);
         };
         win_amount
-        // fixedpoint64
     }
 
     inline fun get_next_game_id(next_game_id: &mut u128): u128 {
