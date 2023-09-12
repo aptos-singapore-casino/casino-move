@@ -319,7 +319,6 @@ module casino_addr::casino {
         
         let resource_account_signer = account::create_signer_with_capability(&state.cap);
         let players = simple_map::keys(&game.players_bets);
-        std::debug::print(&players);
         vector::for_each(players, |player_address| {
             
             // Calculate and pay winning players
@@ -377,10 +376,13 @@ module casino_addr::casino {
         *option::borrow(&game.outcome)   
     }
 
+    // /*
+    //     Creates the resource account address and returns it
+    //     @returns - address of the resource account created in `init_module` function
+    // */
     #[view]
-    public fun view_resource_account_address(): address {
-        let resource_account_address = get_resource_account_address();
-        resource_account_address
+    public fun get_resource_account_address(): address {
+        account::create_resource_address(&@casino_addr, SEED)   
         
     }
 
@@ -388,14 +390,6 @@ module casino_addr::casino {
     //==============================================================================================
     // Helper functions
     //==============================================================================================
-
-    /*
-        Creates the resource account address and returns it
-        @returns - address of the resource account created in `init_module` function
-    */
-    inline fun get_resource_account_address(): address {    
-        account::create_resource_address(&@casino_addr, SEED)        
-    }
 
     /*
         Calculate the total payout for a vector of bets and an outcome
