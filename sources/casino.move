@@ -251,16 +251,16 @@ module casino_addr::casino {
                 vector::push_back(&mut player_bets, bet)
             };
 
-            // TODO check if map is empty, if not empty it and payback player
+            // Check if map is empty, if not empty it and payback player before registering the new bet
+            // TODO: Make this integrated in 1 single payment. Check if this could be exploitable somehow?
             if (simple_map::contains_key(&game.players_bets, &player_address)) {
                 let previous_bets = simple_map::borrow(&game.players_bets, &player_address);
                 let previous_bet_amount = calculate_total_bet_amount(*previous_bets);
                 simple_map::remove(&mut game.players_bets, &player_address);
                 coin::transfer<AptosCoin>(&resource_account_signer, player_address, (previous_bet_amount as u64));
-
             };
 
-            // TODO: Add player_bets and receive payment from player
+            // Register player_bets and receive payment from player
             simple_map::add(&mut game.players_bets, player_address, player_bets);
             let bet_amount = calculate_total_bet_amount(player_bets);
             coin::transfer<AptosCoin>(player, resource_account_address, (bet_amount as u64));
@@ -294,18 +294,15 @@ module casino_addr::casino {
         let state = borrow_global_mut<State>(resource_account_address);
 
         // Get game by game_id
-        
         let game_id = (state.next_game_id -1);
         let game = simple_map::borrow_mut(&mut state.games, &game_id);
         check_if_game_is_not_finished(game);
 
-        // Generate random number using randomness module
+        // Generate outcome using randomness module and save in game strut
         let spin_outcome = (randomness::u64_range(
             (MIN_ROULETTE_OUTCOME as u64),
             (MAX_ROULETTE_OUTCOME + 1 as u64)
         ) as u8);
-
-        // Save the outcome in the game struct
         game.outcome = option::some(spin_outcome);
 
         // Emit ResultEvent
@@ -324,11 +321,17 @@ module casino_addr::casino {
         let players = simple_map::keys(&game.players_bets);
         std::debug::print(&players);
         vector::for_each(players, |player_address| {
-            let player_bets = simple_map::borrow_mut(&mut game.players_bets, &player_address);
-            let apt_amount_won = calculate_total_payout(*player_bets, &spin_outcome);
             
             std::debug::print(&apt_amount_won);
-            coin::transfer<AptosCoin>(&resource_account_signer, player_address, (apt_amount_won as u64));
+
+            // Calculate and pay winning players
+            let player_bets = simple_map::borrow_mut(&mut game.players_bets, &player_address);
+            let apt_amount_won = calculate_total_payout(*player_bets, &spin_outcome);
+            if (apt_amount_won > 0) {
+                coin::transfer<AptosCoin>(&resource_account_signer, player_address, (apt_amount_won as u64));
+            }
+
+            // Emit PayoutWinnerEvent including 0 winnings which don't get a payout
             event::emit_event<PayoutWinnerEvent>(
             &mut state.payout_winner_events,
             PayoutWinnerEvent {
