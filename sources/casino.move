@@ -19,9 +19,6 @@ module casino_addr::casino {
     use std::vector;
     use std::option::{Self, Option};
 
-    // #[test_only]
-    use aptos_framework::aptos_coin;
-
 
     //==============================================================================================
     // Constants
@@ -140,11 +137,17 @@ module casino_addr::casino {
     struct Bet has store, drop, copy {
         // selection is the range that the bet is placed on
         // For a straight up bet it's a single value
-        // For a bet on "even" it's all even values (0 excluded)
-        // Note: See constant values for possible outcomes 
+        // For a bet on "even" it's all even values (excluding 0)
         selection: vector<u8>,
+        // amount is the value bet on the whole selection.
         amount: u128
 
+        // TODO: Rewrite this struct according to commented out values below
+        //       to save on gas and storage.
+        // // selection is a value in range 0,36 inclusive for the field on which the bet is placed
+        // selection: u8,
+        // // amount is the total value placed on this field. 
+        // amount: u128
     }
 
     //==============================================================================================
@@ -235,6 +238,7 @@ module casino_addr::casino {
 
             // Create bets vector based on inputs and add to player_bets
             check_if_vectors_are_same_length(selections, amounts);
+
             let player_bets = vector::empty();
             while (!vector::is_empty(&amounts)) {
                 let bet = Bet{
@@ -395,27 +399,34 @@ module casino_addr::casino {
         total_payout
     }
 
-    /*
-        Calculate the payout for a single bet and an outcome
-        @returns - payout amount as u128 
-    */
     inline fun calculate_single_payout(bet: &Bet, outcome: &u8): u128 {
         let win_amount = 0;
         if (vector::contains(&bet.selection, outcome)) {
-            std::debug::print(&bet.selection);
             let selection2 = vector::borrow(&bet.selection,0);
-            std::debug::print(selection2);
             win_amount = (bet.amount * (MAX_ROULETTE_OUTCOME as u128)) / (vector::length(&bet.selection) as u128);
         };
         win_amount
     }
 
+
+    /*
+        Increment the next_game_id value, while returning the old value to use
+        @param next_game_id - The game_id for the next game as u128
+        @returns - returns a u128 value identical to the parameter input
+    */
     inline fun get_next_game_id(next_game_id: &mut u128): u128 {
         let current_value = *next_game_id;
         *next_game_id = current_value +1;
         current_value
     }
 
+
+    /*
+        Increment the next_game_id value, while returning the old value to use
+        @param games - SimpleMap containing all games mapped to their respective game_id
+        @param game_id - ID of the current game
+        @returns - returns a u128 value identical to the parameter input
+    */
     inline fun start_new_game(games: &mut SimpleMap<u128, Game>, current_game_id: u128) {
         simple_map::add(
             games,
@@ -428,16 +439,26 @@ module casino_addr::casino {
         );
     }
 
-     inline fun get_bet_amount(bet: &Bet): u128 {
-        bet.amount
-    }
-    
+    /*
+        Return the total amount for all bets
+        @param bets - A vector of Bet structs
+        @returns - returns the total bet amount as u128 
+    */
     inline fun calculate_total_bet_amount(bets: vector<Bet>): u128 {
         let total_bet_amount: u128 = 0;
         vector::for_each<Bet>(bets, |bet| {
             total_bet_amount = total_bet_amount + get_bet_amount(&bet);
         });
         total_bet_amount
+    }
+
+    /*
+        Return the amount for the bet
+        @param bet - A Bet struct containing a selection and amount
+        @returns - returns the bet amount as u128 
+    */
+    inline fun get_bet_amount(bet: &Bet): u128 {
+        bet.amount
     }
 
     //==============================================================================================
@@ -475,17 +496,19 @@ module casino_addr::casino {
 
     inline fun check_if_vectors_are_same_length(selections: vector<vector<u8>>, amounts: vector<u128>) {
         assert!(vector::length(&selections) == vector::length(&amounts), EVectorsAreNotSameLength);
-        // TODO selections counts double, fix this
     }
 
     inline fun check_if_game_exists(games: &SimpleMap<u128, Game>, game_id: &u128) {
         assert!(simple_map::contains_key(games, game_id), EGameDoesNotExist);
     }
     
-
     //==============================================================================================
     // Tests
     //==============================================================================================
+    #[test_only]
+    use std::timestamp;
+    #[test_only]
+    use aptos_framework::aptos_coin;
 
     #[test]
     fun test_init_module() acquires State {
@@ -501,8 +524,12 @@ module casino_addr::casino {
         assert!(simple_map::length(&games) == 1, 2);
     }
 
-    #[test]
-    fun test_spin_empty_game() acquires State {
+
+    #[test (aptos_framework = @0x1)]
+    fun test_spin_empty_game(
+        aptos_framework: &signer,
+        ) acquires State {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
         let casino = account::create_account_for_test(@casino_addr);
         coin::register<AptosCoin>(&casino);
         init_module(&casino);
@@ -517,8 +544,11 @@ module casino_addr::casino {
         assert!(simple_map::length(&games) == 2, 2);
     }
 
-    #[test]
-    fun test_bet_on_game_and_receive_winnings() acquires State {
+    #[test (aptos_framework = @0x1)]
+    fun test_bet_on_game_and_receive_winnings(
+        aptos_framework: &signer,
+        ) acquires State {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
         let aptos_framework = account::create_account_for_test(@aptos_framework);
         let player = account::create_account_for_test(@player_addr);
         let casino = account::create_account_for_test(@casino_addr);
