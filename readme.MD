@@ -23,7 +23,7 @@ Las Aptos is not only the first casino on Aptos, it's also the first on-chain ca
 
 - [presentation slides](https://docs.google.com/presentation/d/1MaRa-GY7Pdu31olhGvjg6NKANaKL_nP2_EEmuLA-KqU)
 - [demo video](TODO)
-- [vercel live app](TODO)
+- [live app](lasaptos.netlify.app)
 
 ## Team
 
