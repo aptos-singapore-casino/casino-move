@@ -6,7 +6,7 @@ Las Aptos is not only the first casino on Aptos, it's also the first on-chain ca
 
 - 📃 **MOVE module**: Using a mock implementation of AIP-41.
 - 💰 **Direct payout**: All payments are on-chain and direct.
-- 🫂 **Social features** Connect with your friends, showcase your big wins and compete on leaderboards.
+- 🫂 **Social features**: Connect with your friends, showcase your big wins and compete on leaderboards.
 
 ## Contents
 
