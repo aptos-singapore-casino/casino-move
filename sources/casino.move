@@ -115,6 +115,7 @@ module casino_addr::casino {
         place_bets_events: EventHandle<PlaceBetsEvent>,
         result_events: EventHandle<ResultEvent>,
         payout_winner_events: EventHandle<PayoutWinnerEvent>,
+        payout_events: EventHandle<PayoutEvent>,
     }
 
     /*
@@ -183,6 +184,15 @@ module casino_addr::casino {
         event_creation_timestamp_in_seconds: u64
     }
 
+    /*
+        Event to be emitted after paying out all winners
+    */
+    struct PayoutEvent has store, drop {
+        game_id: u128,
+        amounts: SimpleMap<address, u128>,
+        event_creation_timestamp_in_seconds: u64
+    }
+
     //==============================================================================================
     // Functions
     //==============================================================================================
@@ -212,6 +222,7 @@ module casino_addr::casino {
                 place_bets_events: account::new_event_handle<PlaceBetsEvent>(&resource_account_signer),
                 result_events: account::new_event_handle<ResultEvent>(&resource_account_signer),
                 payout_winner_events: account::new_event_handle<PayoutWinnerEvent>(&resource_account_signer),
+                payout_events: account::new_event_handle<PayoutEvent>(&resource_account_signer),
             }
         )
     }
@@ -314,7 +325,10 @@ module casino_addr::casino {
         }
         );
         
-        // // Loop over all players to payout any winners
+        // Store payout per player for PayoutEvent
+        let payout_per_player = simple_map::create();
+
+        // Loop over all players to payout any winners
         let resource_account_signer = account::create_signer_with_capability(&state.cap);
         let players = simple_map::keys(&game.players_bets);
         vector::for_each(players, |player_address| {
@@ -326,6 +340,8 @@ module casino_addr::casino {
                 coin::transfer<AptosCoin>(&resource_account_signer, player_address, (apt_amount_won as u64));
             };
 
+            // store payout in payout_per_player
+            simple_map::add(&mut payout_per_player, player_address, apt_amount_won);
 
             // Emit PayoutWinnerEvent including 0 winnings which don't get a payout
             event::emit_event<PayoutWinnerEvent>(
@@ -338,6 +354,17 @@ module casino_addr::casino {
             }
             );
         });
+
+        
+        // Emit PayoutEvent including 0 winnings which don't get a payout
+        event::emit_event<PayoutEvent>(
+        &mut state.payout_events,
+        PayoutEvent {
+            game_id: game_id,
+            amounts: payout_per_player,
+            event_creation_timestamp_in_seconds: 0
+        }
+        );
 
         // Start the next game
         let current_game_id = get_next_game_id(&mut state.next_game_id);
