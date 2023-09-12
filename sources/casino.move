@@ -11,7 +11,6 @@ module casino_addr::casino {
 
     // use aptos_framework::timestamp;
     use aptos_framework::event::{Self, EventHandle};
-    // use aptos_framework::event::{EventHandle};
 
     // NOTE: AIP-41, if deployed, this would be aptos_std (or aptos_framework).
     use aptos_std_extra::randomness;
@@ -285,7 +284,7 @@ module casino_addr::casino {
         @returns - u8 with random spin outcome (range 0,36 inclusive)
     */
     public entry fun spin(
-        // admin: &signer, \
+        // admin: &signer,
     ) acquires State {
         // // For hackathon purposes we allow everyone to spin
         // check_if_signer_is_admin(admin);
@@ -299,6 +298,7 @@ module casino_addr::casino {
         check_if_game_is_not_finished(game);
 
         // Generate outcome using randomness module and save in game strut
+        // TODO implement randomness
         let spin_outcome = (randomness::u64_range(
             (MIN_ROULETTE_OUTCOME as u64),
             (MAX_ROULETTE_OUTCOME + 1 as u64)
@@ -316,7 +316,6 @@ module casino_addr::casino {
         );
         
         // // Loop over all players to payout any winners
-        
         let resource_account_signer = account::create_signer_with_capability(&state.cap);
         let players = simple_map::keys(&game.players_bets);
         vector::for_each(players, |player_address| {
@@ -327,7 +326,6 @@ module casino_addr::casino {
             if (apt_amount_won > 0) {
                 coin::transfer<AptosCoin>(&resource_account_signer, player_address, (apt_amount_won as u64));
             };
-            std::debug::print(&apt_amount_won);
 
 
             // Emit PayoutWinnerEvent including 0 winnings which don't get a payout
@@ -410,9 +408,12 @@ module casino_addr::casino {
     inline fun calculate_single_payout(bet: &Bet, outcome: &u8): u128 {
         let win_amount = 0;
         if (vector::contains(&bet.selection, outcome)) {
-            win_amount = (bet.amount * ((MAX_ROULETTE_OUTCOME as u64) / vector::length(&bet.selection) as u128));
+            std::debug::print(bet);
+            std::debug::print(&vector::length(&bet.selection));
+            win_amount = (bet.amount * (MAX_ROULETTE_OUTCOME as u128)) / (vector::length(&bet.selection) as u128);
         };
         win_amount
+        // fixedpoint64
     }
 
     inline fun get_next_game_id(next_game_id: &mut u128): u128 {
@@ -458,15 +459,6 @@ module casino_addr::casino {
         assert!(signer::address_of(account) == @casino_addr,ESignerIsNotAdmin);
     }
 
-    // inline fun check_if_player_has_placed_bet(_account: &signer) {
-    //     assert!(!vector::is_empty(simple_map::borrow(&game.players_bets, player_address)),EPlayerHasAlreadyPlacedBet);
-
-    // }
-
-    inline fun check_if_player_has_not_placed_bet(game: &mut Game, player_address: &address) {
-        assert!(vector::is_empty(simple_map::borrow(&game.players_bets, player_address)),EPlayerHasAlreadyPlacedBet);
-    }
-    
     inline fun check_if_bets_are_valid(bets: vector<Bet>) {
         vector::for_each(bets, |bet| {
             check_if_bet_selection_is_valid(&bet);
@@ -479,12 +471,6 @@ module casino_addr::casino {
             });
     }
 
-
-    inline fun dummy_check(_account: &signer) {
-        assert!(false,ENotImplemented);
-        // TODO: copy paste this to create new validation function
-    }
-
     inline fun check_if_game_is_not_finished(game: &Game) {
         assert!(option::is_none(&game.outcome),EGameIsFinished);
     }
@@ -495,12 +481,9 @@ module casino_addr::casino {
 
     inline fun check_if_vectors_are_same_length(selections: vector<vector<u8>>, amounts: vector<u128>) {
         assert!(vector::length(&selections) == vector::length(&amounts), EVectorsAreNotSameLength);
-        
-        assert!(true,ENotImplemented);
-// TODO: implement this
+        // TODO selections counts double, fix this
     }
 
-    
     inline fun check_if_game_exists(games: &SimpleMap<u128, Game>, game_id: &u128) {
         assert!(simple_map::contains_key(games, game_id), EGameDoesNotExist);
     }
@@ -559,13 +542,6 @@ module casino_addr::casino {
         let outcome = get_game_result(0);
         assert!(outcome == 0, 0);
         assert!(coin::balance<AptosCoin>(@player_addr) == (100 - 1 - 50 + 36), 2);
-
-
-        // assert!(event::counter(&state.place_bets_events) == 1, 4);
-        // assert!(event::counter(&state.result_events) == 1, 5);
-        // assert!(event::counter(&state.payout_winner_events) == 0, 6);
-
-
         coin::destroy_burn_cap(burn_cap);
         coin::destroy_mint_cap(mint_cap);
     }

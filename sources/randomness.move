@@ -1,5 +1,6 @@
 module aptos_std_extra::randomness {
     use std::vector;
+    use std::timestamp;
 
     /// Generates a byte uniformly at random.
     public fun byte(): u8 { 0u8 }
@@ -22,8 +23,18 @@ module aptos_std_extra::randomness {
     public fun u256_integer(): u256 { 0 }
 
     /// Generates a number $n \in [min_incl, max_excl)$ uniformly at random.
-    public fun u64_range(min_incl: u64, max_excl: u64): u64 { max_excl; min_incl }
-    public fun u256_range(min_incl: u256, max_excl: u256): u256 { max_excl; min_incl }
+    public fun u64_range(min_incl: u64, max_excl: u64): u64 { 
+        // max_excl;
+        // min_incl
+        let now = timestamp::now_microseconds();
+        min_incl + now % max_excl
+        }
+
+    public fun u256_range(min_incl: u256, max_excl: u256): u256 { 
+        max_excl;
+        min_incl
+        }
+
 
     /* Similar methods for u8, u16, u32, u64, and u128. */
 
