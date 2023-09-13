@@ -2,7 +2,7 @@
 
 Las Aptos is not only the first casino on Aptos, it's also the first on-chain casino using the pure on-chain randomness module that is scheduled to release in Q4 of 2024.
 
-⚙️ Built using MOVE, React and TypeScript.
+⚙️ Built using MOVE and React.
 
 - 📃 **MOVE module**: Using a mock implementation of AIP-41.
 - 💰 **Direct payout**: All payments are on-chain and direct.
