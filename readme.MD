@@ -14,12 +14,12 @@ Las Aptos is not only the first casino on Aptos, it's also the first on-chain ca
 - [Aptos testnet](https://explorer.aptoslabs.com/account/3208043c4d71906027766264a92931eab44cda8dbed21cc7649d086a0b033190?network=testnet)
 - [presentation slides](https://docs.google.com/presentation/d/1MaRa-GY7Pdu31olhGvjg6NKANaKL_nP2_EEmuLA-KqU)
 - [demo video](TODO)
-- [live app](lasaptos.netlify.app)
+- [live app](https://lasaptos.netlify.app)
 
 ## Team
 
 This project was build at Hack Singapore 2023 by:
 
-- [arjanjohan](twitter.com/arjanjohan/)
-- [0xForkHunter](twitter.com/forkh_eth/)
+- [arjanjohan](https://twitter.com/arjanjohan/)
+- [0xForkHunter](https://twitter.com/forkh_eth/)
 
