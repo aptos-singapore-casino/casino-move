@@ -13,7 +13,7 @@ Las Aptos is not only the first casino on Aptos, it's also the first on-chain ca
 - [frontend repo](https://github.com/aptos-singapore-casino/casino-frontend)
 - [Aptos testnet](https://explorer.aptoslabs.com/account/3208043c4d71906027766264a92931eab44cda8dbed21cc7649d086a0b033190?network=testnet)
 - [presentation slides](https://docs.google.com/presentation/d/1MaRa-GY7Pdu31olhGvjg6NKANaKL_nP2_EEmuLA-KqU)
-- [demo video](TODO)
+- [demo video](https://youtu.be/CJM336Iu5TI)
 - [live app](https://lasaptos.netlify.app)
 
 ## Team
