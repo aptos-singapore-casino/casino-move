@@ -22,4 +22,3 @@ This project was build at Hack Singapore 2023 by:
 
 - [arjanjohan](https://twitter.com/arjanjohan/)
 - [0xForkHunter](https://twitter.com/forkh_eth/)
-
